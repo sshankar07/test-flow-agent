@@ -16,9 +16,19 @@ const enrollments = {};
 // Constants
 const SAMPLE_PLANS = {
   TX: [
-    { planId: 'PLAN-001', name: 'Blue Cross Texas Basic', type: 'PPO', monthlyPremium: 299.99 },
-    { planId: 'PLAN-002', name: 'Blue Cross Texas Plus', type: 'PPO', monthlyPremium: 449.99 },
-    { planId: 'PLAN-003', name: 'Blue Cross Texas Premium', type: 'PPO', monthlyPremium: 599.99 }
+    { planId: 'TX-SILVER-001', id: 'TX-SILVER-001', name: 'Texas Silver Plan', state: 'TX', type: 'Silver' },
+    { planId: 'TX-GOLD-001', id: 'TX-GOLD-001', name: 'Texas Gold Plan', state: 'TX', type: 'Gold' },
+    { planId: 'TX-BRONZE-001', id: 'TX-BRONZE-001', name: 'Texas Bronze Plan', state: 'TX', type: 'Bronze' }
+  ],
+  CA: [
+    { planId: 'CA-BRONZE-001', id: 'CA-BRONZE-001', name: 'California Bronze Plan', state: 'CA', type: 'Bronze' },
+    { planId: 'CA-SILVER-001', id: 'CA-SILVER-001', name: 'California Silver Plan', state: 'CA', type: 'Silver' },
+    { planId: 'CA-GOLD-001', id: 'CA-GOLD-001', name: 'California Gold Plan', state: 'CA', type: 'Gold' }
+  ],
+  FL: [
+    { planId: 'FL-SILVER-001', id: 'FL-SILVER-001', name: 'Florida Silver Plan', state: 'FL', type: 'Silver' },
+    { planId: 'FL-GOLD-001', id: 'FL-GOLD-001', name: 'Florida Gold Plan', state: 'FL', type: 'Gold' },
+    { planId: 'FL-BRONZE-001', id: 'FL-BRONZE-001', name: 'Florida Bronze Plan', state: 'FL', type: 'Bronze' }
   ]
 };
 
@@ -141,9 +151,14 @@ app.post('/enrollments', (req, res) => {
     const { memberId, planId, effectiveDate } = req.body;
 
     // Validation
-    if (!memberId || !planId || !effectiveDate) {
+    if (!memberId || !planId) {
       console.log('Validation Error: Missing required fields');
-      return res.status(400).json({ error: 'Missing required fields: memberId, planId, effectiveDate' });
+      return res.status(400).json({ error: 'Missing required fields: memberId, planId' });
+    }
+
+    if (!effectiveDate) {
+      console.log('Validation Error: effectiveDate is required');
+      return res.status(400).json({ error: 'effectiveDate is required', field: 'effectiveDate' });
     }
 
     // Verify member exists
