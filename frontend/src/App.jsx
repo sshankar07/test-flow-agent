@@ -63,7 +63,7 @@ function App() {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ baseUrl: 'http://localhost:4000', ...analysis }),
+        body: JSON.stringify({ baseUrl: 'http://localhost:4000', manualTestCase: input, ...analysis }),
       })
       if (!res.ok) throw new Error(await res.text())
 
@@ -96,7 +96,7 @@ function App() {
     setLoading(true)
     setStatus('running enrollment flow...')
     try {
-      const res = await fetch(`${API_BASE}/run-enrollment-flow`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      const res = await fetch(`${API_BASE}/run-enrollment-flow`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ manualTestCase: input }) })
       const text = await res.text()
       let parsed = null
       try { parsed = JSON.parse(text) } catch (_) { parsed = null }

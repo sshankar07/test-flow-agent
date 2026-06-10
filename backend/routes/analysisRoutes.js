@@ -2,62 +2,109 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-// Helper: build the Enrollment Creation Flow object
+// Helper: parse a manual test case into a scenario
+function parseScenario(manualText) {
+  const text = (manualText || '').toLowerCase();
+  // state detection
+  let state = 'TX';
+  if (/california|\bca\b/.test(text)) state = 'CA';
+  else if (/florida|\bfl\b/.test(text)) state = 'FL';
+  else if (/texas|\btx\b/.test(text)) state = 'TX';
+
+  // plan detection
+  let plan = 'Silver';
+  if (/\bbronze\b/.test(text)) plan = 'Bronze';
+  else if (/\bgold\b/.test(text)) plan = 'Gold';
+  else if (/\bsilver\b/.test(text)) plan = 'Silver';
+
+  // effective date detection: ISO yyyy-mm-dd or mm/dd/yyyy
+  let effectiveDate = '2026-01-01';
+  const isoMatch = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    effectiveDate = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  } else {
+    const mdy = text.match(/(\b[01]?\d)\/(?:[0-3]?\d)\/(\d{4})/);
+    if (mdy) {
+      // interpret as MM/DD/YYYY -> YYYY-MM-DD
+      const parts = mdy[0].split('/');
+      const mm = parts[0].padStart(2, '0');
+      const dd = parts[1].padStart(2, '0');
+      const yyyy = parts[2];
+      effectiveDate = `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  // negative/missing effective date detection
+  const negativeMissing = /without effective date|missing effective date|no effective date|effective date is missing|no effective date provided|not created|error response|expect.*400|expect.*error/i.test(manualText);
+
+  return { state, plan, effectiveDate, negativeMissingEffectiveDate: !!negativeMissing };
+}
+
+// Helper: build the Enrollment Creation Flow object (uses parsed scenario)
 function buildEnrollmentFlow(inputText) {
   console.log('Building Enrollment Creation Flow from input length', inputText ? inputText.length : 0);
+  const scenario = parseScenario(inputText || '');
+
+  const steps = [
+    {
+      step: 1,
+      action: 'Authenticate user',
+      method: 'POST',
+      endpoint: '{{baseUrl}}/auth/token',
+      purpose: 'Generate access token for secured enrollment APIs'
+    },
+    {
+      step: 2,
+      action: 'Create member',
+      method: 'POST',
+      endpoint: '{{baseUrl}}/members',
+      purpose: 'Create test member with generated demographic data'
+    },
+    {
+      step: 3,
+      action: 'Get available plans',
+      method: 'GET',
+      endpoint: `{{baseUrl}}/plans?state=${scenario.state}`,
+      purpose: `Retrieve eligible plans for ${scenario.state}`
+    }
+  ];
+
+  // Submit enrollment step
+  const submitStep = {
+    step: 4,
+    action: scenario.negativeMissingEffectiveDate ? 'Submit enrollment without effectiveDate' : 'Submit enrollment',
+    method: 'POST',
+    endpoint: '{{baseUrl}}/enrollments',
+    purpose: scenario.negativeMissingEffectiveDate ? 'Submit enrollment without effectiveDate to validate API error handling' : 'Submit enrollment using memberId and planId'
+  };
+  steps.push(submitStep);
+
+  // Validate step only for positive scenarios
+  if (!scenario.negativeMissingEffectiveDate) {
+    steps.push({
+      step: 5,
+      action: 'Validate enrollment',
+      method: 'GET',
+      endpoint: '{{baseUrl}}/enrollments/{{enrollmentId}}',
+      purpose: 'Validate enrollment status is ACTIVE'
+    });
+  }
+
   const flow = {
     input: inputText || '',
     businessFlowName: 'Enrollment Creation Flow',
-    detectedSteps: [
-      {
-        step: 1,
-        action: 'Authenticate user',
-        method: 'POST',
-        endpoint: '{{baseUrl}}/auth/token',
-        purpose: 'Generate access token for secured enrollment APIs'
-      },
-      {
-        step: 2,
-        action: 'Create member',
-        method: 'POST',
-        endpoint: '{{baseUrl}}/members',
-        purpose: 'Create test member with generated demographic data'
-      },
-      {
-        step: 3,
-        action: 'Get available plans',
-        method: 'GET',
-        endpoint: '{{baseUrl}}/plans?state=TX',
-        purpose: 'Retrieve eligible plans for Texas'
-      },
-      {
-        step: 4,
-        action: 'Submit enrollment',
-        method: 'POST',
-        endpoint: '{{baseUrl}}/enrollments',
-        purpose: 'Submit enrollment using memberId and planId'
-      },
-      {
-        step: 5,
-        action: 'Validate enrollment',
-        method: 'GET',
-        endpoint: '{{baseUrl}}/enrollments/{{enrollmentId}}',
-        purpose: 'Validate enrollment status is ACTIVE'
-      }
-    ],
-    dynamicVariables: [
-      'baseUrl',
-      'accessToken',
-      'memberId',
-      'planId',
-      'enrollmentId',
-      'state',
-      'effectiveDate'
-    ],
-    validationChecklist: [
+    detectedSteps: steps,
+    dynamicVariables: ['baseUrl', 'accessToken', 'memberId', 'planId', 'enrollmentId', 'state'].concat(scenario.negativeMissingEffectiveDate ? [] : ['effectiveDate']),
+    scenario,
+    validationChecklist: scenario.negativeMissingEffectiveDate ? [
       'Token response contains accessToken',
       'Member creation returns memberId',
-      'Plans API returns at least one Silver plan',
+      `Plans API returns at least one ${scenario.plan} plan`,
+      'Submit enrollment returns HTTP 400 when effectiveDate missing'
+    ] : [
+      'Token response contains accessToken',
+      'Member creation returns memberId',
+      `Plans API returns at least one ${scenario.plan} plan`,
       'Enrollment response returns enrollmentId',
       'Enrollment status is ACTIVE'
     ],
@@ -72,10 +119,13 @@ function buildEnrollmentFlow(inputText) {
 }
 
 // Helper: build Postman collection (v2.1)
-function buildPostmanCollection() {
+function buildPostmanCollection(scenario = { state: 'TX', plan: 'Silver', effectiveDate: '2026-01-01', negativeMissingEffectiveDate: false }) {
+  const { state, plan, effectiveDate, negativeMissingEffectiveDate } = scenario;
+  const lowerPlan = (plan || '').toLowerCase();
+
   const collection = {
     info: {
-      name: 'TestFlow Agent - Enrollment Creation',
+      name: `TestFlow Agent - Enrollment Creation (${state} - ${plan})`,
       schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
     },
     variable: [
@@ -83,151 +133,106 @@ function buildPostmanCollection() {
       { key: 'username', value: 'test' },
       { key: 'password', value: 'test' }
     ],
-    item: [
-      // Authenticate
-      {
-        name: 'Authenticate',
-        request: {
-          method: 'POST',
-          header: [{ key: 'Content-Type', value: 'application/json' }],
-          body: { mode: 'raw', raw: JSON.stringify({ username: '{{username}}', password: '{{password}}' }, null, 2) },
-          url: {
-            raw: '{{baseUrl}}/auth/token',
-            host: ['{{baseUrl}}'],
-            path: ['auth', 'token']
-          }
-        },
-        event: [{
-          listen: 'test',
-          script: {
-            type: 'text/javascript',
-            exec: [
-              "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
-              "var json = pm.response.json();",
-              "pm.test('accessToken exists', function () { pm.expect(json.accessToken).to.exist; });",
-              "pm.environment.set('accessToken', json.accessToken);"
-            ]
-          }
-        }]
-      },
-
-      // Create Member
-      {
-        name: 'Create Member',
-        request: {
-          method: 'POST',
-          header: [
-            { key: 'Content-Type', value: 'application/json' },
-            { key: 'Authorization', value: 'Bearer {{accessToken}}' }
-          ],
-          body: { mode: 'raw', raw: JSON.stringify({ firstName: 'Test', lastName: 'Member', dob: '1990-01-01', state: 'TX' }, null, 2) },
-          url: {
-            raw: '{{baseUrl}}/members',
-            host: ['{{baseUrl}}'],
-            path: ['members']
-          }
-        },
-        event: [{
-          listen: 'test',
-          script: {
-            type: 'text/javascript',
-            exec: [
-              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
-              "var json = pm.response.json();",
-              "pm.test('memberId exists', function () { pm.expect(json.memberId || json.id).to.exist; });",
-              "pm.environment.set('memberId', json.memberId || json.id);"
-            ]
-          }
-        }]
-      },
-
-      // Get Texas Plans
-      {
-        name: 'Get Texas Plans',
-        request: {
-          method: 'GET',
-          header: [{ key: 'Authorization', value: 'Bearer {{accessToken}}' }],
-          url: {
-            raw: '{{baseUrl}}/plans?state=TX',
-            host: ['{{baseUrl}}'],
-            path: ['plans'],
-            query: [{ key: 'state', value: 'TX' }]
-          }
-        },
-        event: [{
-          listen: 'test',
-          script: {
-            type: 'text/javascript',
-            exec: [
-              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-              "var json = pm.response.json();",
-              "var plans = Array.isArray(json) ? json : Array.isArray(json.plans) ? json.plans : Array.isArray(json.data) ? json.data : [];",
-              "pm.test('Plans are returned', function () { pm.expect(plans).to.be.an('array'); pm.expect(plans.length).to.be.greaterThan(0); });",
-              "var plan = plans.find(function(p){ return (p.name && p.name.toLowerCase().includes('silver')) || (p.type && p.type.toLowerCase() === 'silver') || (p.planName && p.planName.toLowerCase().includes('silver')); });",
-              "pm.test('Found Silver plan', function () { pm.expect(plan).to.exist; });",
-              "pm.environment.set('planId', plan.planId || plan.id);"
-            ]
-          }
-        }]
-      },
-
-      // Submit Enrollment
-      {
-        name: 'Submit Enrollment',
-        request: {
-          method: 'POST',
-          header: [
-            { key: 'Content-Type', value: 'application/json' },
-            { key: 'Authorization', value: 'Bearer {{accessToken}}' }
-          ],
-          body: { mode: 'raw', raw: JSON.stringify({ memberId: '{{memberId}}', planId: '{{planId}}', effectiveDate: '2026-01-01' }, null, 2) },
-          url: {
-            raw: '{{baseUrl}}/enrollments',
-            host: ['{{baseUrl}}'],
-            path: ['enrollments']
-          }
-        },
-        event: [{
-          listen: 'test',
-          script: {
-            type: 'text/javascript',
-            exec: [
-              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
-              "var json = pm.response.json();",
-              "pm.test('enrollmentId exists', function () { pm.expect(json.enrollmentId || json.id).to.exist; });",
-              "pm.test('enrollment status is ACTIVE', function () { pm.expect(json.status).to.eql('ACTIVE'); });",
-              "pm.environment.set('enrollmentId', json.enrollmentId || json.id);"
-            ]
-          }
-        }]
-      },
-
-      // Validate Enrollment
-      {
-        name: 'Validate Enrollment',
-        request: {
-          method: 'GET',
-          header: [{ key: 'Authorization', value: 'Bearer {{accessToken}}' }],
-          url: {
-            raw: '{{baseUrl}}/enrollments/{{enrollmentId}}',
-            host: ['{{baseUrl}}'],
-            path: ['enrollments', '{{enrollmentId}}']
-          }
-        },
-        event: [{
-          listen: 'test',
-          script: {
-            type: 'text/javascript',
-            exec: [
-              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-              "var json = pm.response.json();",
-              "pm.test('Enrollment is ACTIVE', function () { pm.expect(json.status).to.eql('ACTIVE'); });"
-            ]
-          }
-        }]
-      }
-    ]
+    item: []
   };
+
+  // Authenticate
+  collection.item.push({
+    name: 'Authenticate',
+    request: {
+      method: 'POST',
+      header: [{ key: 'Content-Type', value: 'application/json' }],
+      body: { mode: 'raw', raw: JSON.stringify({ username: '{{username}}', password: '{{password}}' }, null, 2) },
+      url: { raw: '{{baseUrl}}/auth/token', host: ['{{baseUrl}}'], path: ['auth', 'token'] }
+    },
+    event: [{ listen: 'test', script: { type: 'text/javascript', exec: [
+      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+      "var json = pm.response.json();",
+      "pm.test('accessToken exists', function () { pm.expect(json.accessToken).to.exist; });",
+      "pm.environment.set('accessToken', json.accessToken);"
+    ] } }]
+  });
+
+  // Create Member
+  collection.item.push({
+    name: 'Create Member',
+    request: {
+      method: 'POST',
+      header: [{ key: 'Content-Type', value: 'application/json' }, { key: 'Authorization', value: 'Bearer {{accessToken}}' }],
+      body: { mode: 'raw', raw: JSON.stringify({ firstName: 'Test', lastName: 'Member', dob: '1990-01-01', state: state }, null, 2) },
+      url: { raw: '{{baseUrl}}/members', host: ['{{baseUrl}}'], path: ['members'] }
+    },
+    event: [{ listen: 'test', script: { type: 'text/javascript', exec: [
+      "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+      "var json = pm.response.json();",
+      "pm.test('memberId exists', function () { pm.expect(json.memberId || json.id).to.exist; });",
+      "pm.environment.set('memberId', json.memberId || json.id);"
+    ] } }]
+  });
+
+  // Get Plans
+  collection.item.push({
+    name: `Get ${state} Plans`,
+    request: {
+      method: 'GET',
+      header: [{ key: 'Authorization', value: 'Bearer {{accessToken}}' }],
+      url: { raw: `{{baseUrl}}/plans?state=${state}`, host: ['{{baseUrl}}'], path: ['plans'], query: [{ key: 'state', value: state }] }
+    },
+    event: [{ listen: 'test', script: { type: 'text/javascript', exec: [
+      "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+      "var json = pm.response.json();",
+      "var plans = Array.isArray(json) ? json : Array.isArray(json.plans) ? json.plans : Array.isArray(json.data) ? json.data : [];",
+      "pm.test('Plans are returned', function () { pm.expect(plans).to.be.an('array'); pm.expect(plans.length).to.be.greaterThan(0); });",
+      `var plan = plans.find(function(p){ return (p.name && p.name.toLowerCase().includes('${lowerPlan}')) || (p.type && p.type.toLowerCase() === '${lowerPlan}'); });`,
+      "pm.test('Found plan', function () { pm.expect(plan).to.exist; });",
+      "pm.environment.set('planId', plan.planId || plan.id);"
+    ] } }]
+  });
+
+  // Submit Enrollment
+  const submitBody = { memberId: '{{memberId}}', planId: '{{planId}}' };
+  if (!negativeMissingEffectiveDate) submitBody.effectiveDate = effectiveDate;
+
+  const submitTests = negativeMissingEffectiveDate ? [
+    "pm.test('Status is 400', function () { pm.response.to.have.status(400); });",
+    "var json = pm.response.json();",
+    "pm.test('error mentions effectiveDate', function () { pm.expect(json.error || JSON.stringify(json)).to.include('effectiveDate'); });"
+  ] : [
+    "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+    "var json = pm.response.json();",
+    "pm.test('enrollmentId exists', function () { pm.expect(json.enrollmentId || json.id).to.exist; });",
+    "pm.test('enrollment status is ACTIVE', function () { pm.expect(json.status).to.eql('ACTIVE'); });",
+    "pm.environment.set('enrollmentId', json.enrollmentId || json.id);"
+  ];
+
+  collection.item.push({
+    name: 'Submit Enrollment',
+    request: {
+      method: 'POST',
+      header: [{ key: 'Content-Type', value: 'application/json' }, { key: 'Authorization', value: 'Bearer {{accessToken}}' }],
+      body: { mode: 'raw', raw: JSON.stringify(submitBody, null, 2) },
+      url: { raw: '{{baseUrl}}/enrollments', host: ['{{baseUrl}}'], path: ['enrollments'] }
+    },
+    event: [{ listen: 'test', script: { type: 'text/javascript', exec: submitTests } }]
+  });
+
+  // Validate Enrollment (only for positive scenarios)
+  if (!negativeMissingEffectiveDate) {
+    collection.item.push({
+      name: 'Validate Enrollment',
+      request: {
+        method: 'GET',
+        header: [{ key: 'Authorization', value: 'Bearer {{accessToken}}' }],
+        url: { raw: '{{baseUrl}}/enrollments/{{enrollmentId}}', host: ['{{baseUrl}}'], path: ['enrollments', '{{enrollmentId}}'] }
+      },
+      event: [{ listen: 'test', script: { type: 'text/javascript', exec: [
+        "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+        "var json = pm.response.json();",
+        "pm.test('Enrollment is ACTIVE', function () { pm.expect(json.status).to.eql('ACTIVE'); });"
+      ] } }]
+    });
+  }
+
   return collection;
 }
 
@@ -243,7 +248,9 @@ router.post('/analyze', (req, res) => {
 // POST /agent/generate-postman
 router.post('/generate-postman', (req, res) => {
   console.log('[generate-postman] Received request');
-  const collection = buildPostmanCollection();
+  const manualText = req.body && (req.body.manualTestCase || req.body.manual || req.body.text || '');
+  const scenario = parseScenario(manualText);
+  const collection = buildPostmanCollection(scenario);
 
   const environment = {
     name: 'TestFlow Enrollment Local Environment',
@@ -266,9 +273,10 @@ router.post('/generate-postman', (req, res) => {
     environmentFileName: 'testflow-enrollment-environment.json',
     estimatedManualEffort: '45 to 60 minutes',
     generatedIn: 'under 1 minute',
-    productivityMessage: 'Generated reusable Postman collection + environment in under 1 minute. Manually creating this 5-step API collection with variables and validations usually takes 45–60 minutes.',
+    productivityMessage: 'Generated reusable Postman collection + environment in under 1 minute. Manual setup usually takes 45–60 minutes.',
     collection,
-    environment
+    environment,
+    scenario
   };
 
   console.log('[generate-postman] Returning collection + environment');
@@ -278,6 +286,15 @@ router.post('/generate-postman', (req, res) => {
 // POST /agent/generate-playwright
 router.post('/generate-playwright', (req, res) => {
   console.log('[generate-playwright] Received request');
+  const manualText = req.body && (req.body.manualTestCase || req.body.manual || req.body.text || '');
+  const sc = parseScenario(manualText);
+  const state = sc.state;
+  const plan = sc.plan;
+  const effectiveDate = sc.effectiveDate;
+  const negative = sc.negativeMissingEffectiveDate;
+
+  const planFindExpr = `p.name && p.name.toLowerCase().includes('${plan.toLowerCase()}') || (p.type && p.type.toLowerCase() === '${plan.toLowerCase()}')`;
+
   const scriptLines = [
     "import { test, expect } from '@playwright/test';",
     "",
@@ -295,8 +312,8 @@ router.post('/generate-playwright', (req, res) => {
     "  expect(accessToken).toBeTruthy();",
     "",
     "  // 2) Create member",
-    "  const memberRes = await request.post(baseUrl + '/members', {",
-    "    data: { firstName: 'Test', lastName: 'Member', dob: '1990-01-01', state: 'TX' },",
+    `  const memberRes = await request.post(baseUrl + '/members', {`,
+    `    data: { firstName: 'Test', lastName: 'Member', dob: '1990-01-01', state: '${state}' },`,
     "    headers: { Authorization: 'Bearer ' + accessToken }",
     "  });",
     "  expect(memberRes.status()).toBe(201);",
@@ -305,34 +322,52 @@ router.post('/generate-playwright', (req, res) => {
     "  expect(memberId).toBeTruthy();",
     "",
     "  // 3) Get plans",
-    "  const plansRes = await request.get(baseUrl + '/plans?state=TX', { headers: { Authorization: 'Bearer ' + accessToken } });",
+    `  const plansRes = await request.get(baseUrl + '/plans?state=${state}', { headers: { Authorization: 'Bearer ' + accessToken } });`,
     "  expect(plansRes.status()).toBe(200);",
     "  const plansJson = await plansRes.json();",
     "  const plans = Array.isArray(plansJson) ? plansJson : (plansJson && plansJson.plans) ? plansJson.plans : (plansJson && plansJson.data) ? plansJson.data : [];",
     "  expect(Array.isArray(plans)).toBeTruthy();",
     "  expect(plans.length).toBeGreaterThan(0);",
-    "  const plan = plans.find(p => (p.name && p.name.toLowerCase().includes('silver')) || (p.type && p.type.toLowerCase() === 'silver') || (p.planName && p.planName.toLowerCase().includes('silver')));",
+    `  const plan = plans.find(p => (${planFindExpr}));`,
     "  expect(plan).toBeTruthy();",
     "  const planId = plan.planId || plan.id;",
     "  expect(planId).toBeTruthy();",
     "",
     "  // 4) Submit enrollment",
-    "  const enrollRes = await request.post(baseUrl + '/enrollments', {",
-    "    data: { memberId, planId, effectiveDate: '2026-01-01' },",
-    "    headers: { Authorization: 'Bearer ' + accessToken }",
-    "  });",
-    "  expect(enrollRes.status()).toBe(201);",
-    "  const enrollJson = await enrollRes.json();",
-    "  const enrollmentId = enrollJson.enrollmentId || enrollJson.id;",
-    "  expect(enrollmentId).toBeTruthy();",
-    "",
-    "  // 5) Validate enrollment",
-    "  const validateRes = await request.get(baseUrl + '/enrollments/' + enrollmentId, { headers: { Authorization: 'Bearer ' + accessToken } });",
-    "  expect(validateRes.status()).toBe(200);",
-    "  const validateJson = await validateRes.json();",
-    "  expect(validateJson.status).toBe('ACTIVE');",
-    "});"
   ];
+
+  if (!negative) {
+    scriptLines.push(
+      "  const enrollRes = await request.post(baseUrl + '/enrollments', {",
+      "    data: { memberId, planId, effectiveDate: '" + effectiveDate + "' },",
+      "    headers: { Authorization: 'Bearer ' + accessToken }",
+      "  });",
+      "  expect(enrollRes.status()).toBe(201);",
+      "  const enrollJson = await enrollRes.json();",
+      "  const enrollmentId = enrollJson.enrollmentId || enrollJson.id;",
+      "  expect(enrollmentId).toBeTruthy();",
+      "",
+      "  // 5) Validate enrollment",
+      "  const validateRes = await request.get(baseUrl + '/enrollments/' + enrollmentId, { headers: { Authorization: 'Bearer ' + accessToken } });",
+      "  expect(validateRes.status()).toBe(200);",
+      "  const validateJson = await validateRes.json();",
+      "  expect(validateJson.status).toBe('ACTIVE');"
+    );
+  } else {
+    scriptLines.push(
+      "  const enrollRes = await request.post(baseUrl + '/enrollments', {",
+      "    data: { memberId, planId },",
+      "    headers: { Authorization: 'Bearer ' + accessToken }",
+      "  });",
+      "  // Expect bad request when effectiveDate is missing",
+      "  expect(enrollRes.status()).toBe(400);",
+      "  const errJson = await enrollRes.json();",
+      "  expect(JSON.stringify(errJson)).toContain('effectiveDate');"
+    );
+  }
+
+  scriptLines.push("});");
+
   const script = scriptLines.join('\n');
 
   const response = {
@@ -351,6 +386,11 @@ router.post('/generate-playwright', (req, res) => {
 // POST /agent/generate-jmeter
 router.post('/generate-jmeter', (req, res) => {
   console.log('[generate-jmeter] Received request');
+  const manualText = req.body && (req.body.manualTestCase || req.body.manual || req.body.text || '');
+  const sc = parseScenario(manualText);
+  const state = sc.state;
+  const effectiveDate = sc.effectiveDate;
+  const negative = sc.negativeMissingEffectiveDate;
 
   // Build a simple JMX XML (valid enough for JMeter import)
   const jmxLines = [
@@ -363,15 +403,15 @@ router.post('/generate-jmeter', (req, res) => {
     '      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>',
     '      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments">',
     '        <collectionProp name="Arguments.arguments">',
-    '          <elementProp name="baseUrl" elementType="Argument">',
+    `          <elementProp name="baseUrl" elementType="Argument">`,
     '            <stringProp name="Argument.name">baseUrl</stringProp>',
     '            <stringProp name="Argument.value">http://localhost:4000</stringProp>',
     '          </elementProp>',
-    '          <elementProp name="username" elementType="Argument">',
+    `          <elementProp name="username" elementType="Argument">`,
     '            <stringProp name="Argument.name">username</stringProp>',
     '            <stringProp name="Argument.value">test</stringProp>',
     '          </elementProp>',
-    '          <elementProp name="password" elementType="Argument">',
+    `          <elementProp name="password" elementType="Argument">`,
     '            <stringProp name="Argument.name">password</stringProp>',
     '            <stringProp name="Argument.value">test</stringProp>',
     '          </elementProp>',
@@ -417,37 +457,45 @@ router.post('/generate-jmeter', (req, res) => {
     '        <hashTree/>',
     '        <!-- Create Member -->',
     '        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Create Member" enabled="true">',
-    '          <stringProp name="HTTPSampler.domain">${baseUrl}</stringProp>',
-    '          <stringProp name="HTTPSampler.path">/members</stringProp>',
-    '          <stringProp name="HTTPSampler.method">POST</stringProp>',
+    `          <stringProp name="HTTPSampler.domain">${baseUrl}</stringProp>`,
+    `          <stringProp name="HTTPSampler.path">/members</stringProp>`,
+    `          <stringProp name="HTTPSampler.method">POST</stringProp>`,
     '        </HTTPSamplerProxy>',
     '        <hashTree/>',
     '        <!-- Get Plans -->',
     '        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Get Plans" enabled="true">',
-    '          <stringProp name="HTTPSampler.domain">${baseUrl}</stringProp>',
-    '          <stringProp name="HTTPSampler.path">/plans</stringProp>',
-    '          <stringProp name="HTTPSampler.method">GET</stringProp>',
+    `          <stringProp name="HTTPSampler.domain">${baseUrl}</stringProp>`,
+    `          <stringProp name="HTTPSampler.path">/plans?state=${state}</stringProp>`,
+    `          <stringProp name="HTTPSampler.method">GET</stringProp>`,
     '        </HTTPSamplerProxy>',
     '        <hashTree/>',
     '        <!-- Submit Enrollment -->',
     '        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Submit Enrollment" enabled="true">',
-    '          <stringProp name="HTTPSampler.domain">${baseUrl}</stringProp>',
-    '          <stringProp name="HTTPSampler.path">/enrollments</stringProp>',
-    '          <stringProp name="HTTPSampler.method">POST</stringProp>',
+    `          <stringProp name="HTTPSampler.domain">${baseUrl}</stringProp>`,
+    `          <stringProp name="HTTPSampler.path">/enrollments</stringProp>`,
+    `          <stringProp name="HTTPSampler.method">POST</stringProp>`,
     '        </HTTPSamplerProxy>',
     '        <hashTree/>',
-    '        <!-- Validate Enrollment -->',
-    '        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Validate Enrollment" enabled="true">',
-    '          <stringProp name="HTTPSampler.domain">${baseUrl}</stringProp>',
-    '          <stringProp name="HTTPSampler.path">/enrollments/${enrollmentId}</stringProp>',
-    '          <stringProp name="HTTPSampler.method">GET</stringProp>',
-    '        </HTTPSamplerProxy>',
-    '        <hashTree/>',
+  ];
+
+  if (!negative) {
+    jmxLines.push(
+      '        <!-- Validate Enrollment -->',
+      '        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Validate Enrollment" enabled="true">',
+      '          <stringProp name="HTTPSampler.domain">${baseUrl}</stringProp>',
+      '          <stringProp name="HTTPSampler.path">/enrollments/${enrollmentId}</stringProp>',
+      '          <stringProp name="HTTPSampler.method">GET</stringProp>',
+      '        </HTTPSamplerProxy>',
+      '        <hashTree/>'
+    );
+  }
+
+  jmxLines.push(
     '      </hashTree>',
     '    </hashTree>',
     '  </hashTree>',
     '</jmeterTestPlan>'
-  ];
+  );
 
   const jmx = jmxLines.join('\n');
 
@@ -460,7 +508,7 @@ router.post('/generate-jmeter', (req, res) => {
     jmx,
     summary: {
       threadGroup: { name: 'Enrollment Flow Thread Group', threads: 1, rampUp: 1, loops: 1 },
-      steps: ['Authenticate','Create Member','Get Plans','Submit Enrollment','Validate Enrollment']
+      steps: negative ? ['Authenticate','Create Member','Get Plans','Submit Enrollment (expect 400)'] : ['Authenticate','Create Member','Get Plans','Submit Enrollment','Validate Enrollment']
     }
   };
 
@@ -568,6 +616,13 @@ router.post('/run-enrollment-flow', async (req, res) => {
   const steps = [];
   let currentStep = 'Unknown';
   const startNs = process.hrtime.bigint();
+
+  const manualText = req.body && (req.body.manualTestCase || req.body.manual || req.body.text || '');
+  const sc = parseScenario(manualText);
+  const state = sc.state;
+  const negative = sc.negativeMissingEffectiveDate;
+  const effectiveDate = sc.effectiveDate;
+
   try {
     // 1) Authenticate
     currentStep = 'Authenticate';
@@ -581,7 +636,7 @@ router.post('/run-enrollment-flow', async (req, res) => {
     // 2) Create member
     currentStep = 'Create Member';
     console.log('[run] Creating member...');
-    const memberResp = await axios.post(`${baseUrl}/members`, { firstName: 'Test', lastName: 'Member', dob: '1990-01-01', state: 'TX' }, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
+    const memberResp = await axios.post(`${baseUrl}/members`, { firstName: 'Test', lastName: 'Member', dob: '1990-01-01', state }, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
     if (memberResp.status !== 201) throw new Error('Create member failed with status ' + memberResp.status);
     const memberId = memberResp.data.memberId || memberResp.data.id;
     if (!memberId) throw new Error('No memberId in create member response');
@@ -590,7 +645,7 @@ router.post('/run-enrollment-flow', async (req, res) => {
     // 3) Get plans
     currentStep = 'Get Plans';
     console.log('[run] Fetching plans...');
-    const plansResp = await axios.get(`${baseUrl}/plans?state=TX`, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
+    const plansResp = await axios.get(`${baseUrl}/plans?state=${state}`, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
     if (plansResp.status !== 200) throw new Error('Get plans failed with status ' + plansResp.status);
     const plansPayload = plansResp.data;
     const plans = Array.isArray(plansPayload)
@@ -601,47 +656,76 @@ router.post('/run-enrollment-flow', async (req, res) => {
       ? plansPayload.data
       : [];
     if (!Array.isArray(plans) || plans.length === 0) throw new Error('No plans returned');
-    const plan = plans.find(p => ((p.name || '').toLowerCase().includes('silver')) || ((p.type || '').toLowerCase() === 'silver') || ((p.planName || '').toLowerCase().includes('silver')));
-    if (!plan) throw new Error('No Silver plan found');
+    const plan = plans.find(p => ((p.name || '').toLowerCase().includes((sc.plan || '').toLowerCase())) || ((p.type || '').toLowerCase() === (sc.plan || '').toLowerCase()));
+    if (!plan) throw new Error(`No ${sc.plan} plan found`);
     const planId = plan.planId || plan.id || plan.planId;
-    steps.push({ name: 'Get Plans', status: 'PASSED', details: 'Silver plan selected' });
+    steps.push({ name: 'Get Plans', status: 'PASSED', details: `${sc.plan} plan selected` });
 
     // 4) Submit enrollment
     currentStep = 'Submit Enrollment';
     console.log('[run] Submitting enrollment...');
-    const enrollResp = await axios.post(`${baseUrl}/enrollments`, { memberId, planId, effectiveDate: '2026-01-01' }, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
-    if (enrollResp.status !== 201) throw new Error('Submit enrollment failed with status ' + enrollResp.status);
-    const enrollmentId = enrollResp.data.enrollmentId || enrollResp.data.id;
-    if (!enrollmentId) throw new Error('No enrollmentId in enrollment response');
-    steps.push({ name: 'Submit Enrollment', status: 'PASSED', details: 'Enrollment submitted' });
 
-    // 5) Validate enrollment
-    currentStep = 'Validate Enrollment';
-    console.log('[run] Validating enrollment...');
-    const validateResp = await axios.get(`${baseUrl}/enrollments/${enrollmentId}`, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
-    if (validateResp.status !== 200) throw new Error('Validate enrollment failed with status ' + validateResp.status);
-    const enrollmentStatus = validateResp.data.status;
-    if (enrollmentStatus !== 'ACTIVE') throw new Error('Enrollment status is not ACTIVE: ' + enrollmentStatus);
-    steps.push({ name: 'Validate Enrollment', status: 'PASSED', details: 'Enrollment status is ACTIVE' });
+    try {
+      const enrollBody = { memberId, planId };
+      if (!negative) enrollBody.effectiveDate = effectiveDate;
+      const enrollResp = await axios.post(`${baseUrl}/enrollments`, enrollBody, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
 
-    const elapsedNs = process.hrtime.bigint() - startNs;
-    const elapsedUs = Number(elapsedNs / 1000n); // microseconds
-    const executionTime = elapsedUs >= 1000 ? `${(elapsedUs/1000).toFixed(2)} ms (${elapsedUs} µs)` : `${elapsedUs} µs`;
+      if (negative) {
+        // If negative case but API returned success, treat as failure
+        throw new Error('Expected enrollment submission to fail with 400 but received ' + enrollResp.status);
+      }
 
-    const result = {
-      status: 'SUCCESS',
-      message: 'Enrollment flow executed successfully',
-      memberId,
-      planId,
-      enrollmentId,
-      enrollmentStatus,
-      executionTime,
-      steps
-    };
-    console.log('[run-enrollment-flow] Success', result);
-    return res.json(result);
+      if (enrollResp.status !== 201) throw new Error('Submit enrollment failed with status ' + enrollResp.status);
+      const enrollmentId = enrollResp.data.enrollmentId || enrollResp.data.id;
+      if (!enrollmentId) throw new Error('No enrollmentId in enrollment response');
+      steps.push({ name: 'Submit Enrollment', status: 'PASSED', details: 'Enrollment submitted' });
+
+      // 5) Validate enrollment
+      currentStep = 'Validate Enrollment';
+      console.log('[run] Validating enrollment...');
+      const validateResp = await axios.get(`${baseUrl}/enrollments/${enrollmentId}`, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
+      if (validateResp.status !== 200) throw new Error('Validate enrollment failed with status ' + validateResp.status);
+      const enrollmentStatus = validateResp.data.status;
+      if (enrollmentStatus !== 'ACTIVE') throw new Error('Enrollment status is not ACTIVE: ' + enrollmentStatus);
+      steps.push({ name: 'Validate Enrollment', status: 'PASSED', details: 'Enrollment status is ACTIVE' });
+
+      const elapsedNs = process.hrtime.bigint() - startNs;
+      const elapsedUs = Number(elapsedNs / 1000n); // microseconds
+      const executionTime = elapsedUs >= 1000 ? `${(elapsedUs/1000).toFixed(2)} ms (${elapsedUs} µs)` : `${elapsedUs} µs`;
+
+      const result = {
+        status: 'SUCCESS',
+        message: 'Enrollment flow executed successfully',
+        memberId,
+        planId,
+        enrollmentId,
+        enrollmentStatus,
+        executionTime,
+        steps
+      };
+      console.log('[run-enrollment-flow] Success', result);
+      return res.json(result);
+    } catch (enrollErr) {
+      // handle negative case where we expect 400
+      if (enrollErr.response && enrollErr.response.status === 400 && negative) {
+        steps.push({ name: 'Submit Enrollment', status: 'PASSED', details: 'Submit enrollment returned expected 400 for missing effectiveDate' });
+        const elapsedNs = process.hrtime.bigint() - startNs;
+        const elapsedUs = Number(elapsedNs / 1000n);
+        const executionTime = elapsedUs >= 1000 ? `${(elapsedUs/1000).toFixed(2)} ms (${elapsedUs} µs)` : `${elapsedUs} µs`;
+        const result = {
+          status: 'SUCCESS',
+          message: 'Enrollment flow executed (negative test validated expected 400)',
+          memberId,
+          planId,
+          executionTime,
+          steps
+        };
+        return res.json(result);
+      }
+      throw enrollErr;
+    }
   } catch (err) {
-    console.error('[run-enrollment-flow] Failed', err.message || err);
+    console.error('[run-enrollment-flow] Failed', err.message || err, err.response && err.response.data ? err.response.data : '');
     return res.status(500).json({ status: 'FAILED', message: 'Enrollment flow failed', failedStep: currentStep, error: err.message || String(err) });
   }
 });
