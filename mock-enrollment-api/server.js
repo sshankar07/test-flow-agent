@@ -16,9 +16,8 @@ const enrollments = {};
 // Constants
 const SAMPLE_PLANS = {
   TX: [
-    { planId: 'PLAN-001', name: 'Blue Cross Texas Basic', type: 'PPO', monthlyPremium: 299.99 },
-    { planId: 'PLAN-002', name: 'Blue Cross Texas Plus', type: 'PPO', monthlyPremium: 449.99 },
-    { planId: 'PLAN-003', name: 'Blue Cross Texas Premium', type: 'PPO', monthlyPremium: 599.99 }
+    { planId: 'TX-SILVER-001', id: 'TX-SILVER-001', name: 'Texas Silver Plan', state: 'TX', type: 'Silver' },
+    { planId: 'TX-GOLD-001', id: 'TX-GOLD-001', name: 'Texas Gold Plan', state: 'TX', type: 'Gold' }
   ]
 };
 
