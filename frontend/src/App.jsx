@@ -2,13 +2,21 @@ import { useState, useEffect } from 'react'
 import './App.css'
 
 function App() {
-  const [input, setInput] = useState(`Create an enrollment for a Texas member.\nGenerate valid member test data.\nGet available plans for Texas.\nSelect a Silver plan.\nSubmit enrollment with effective date 01/01/2026.\nValidate enrollment status is ACTIVE and enrollment ID is generated.`)
+  const [input, setInput] = useState('')
   const [analysis, setAnalysis] = useState(null)
   const [output, setOutput] = useState('')
   const [generatedOutput, setGeneratedOutput] = useState(null)
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState('')
   const [showToast, setShowToast] = useState(false)
+  const [navToast, setNavToast] = useState(false)
+  const [navToastMessage, setNavToastMessage] = useState('')
+
+  function showNavDemoToast(msg = 'Demo navigation only') {
+    setNavToastMessage(msg)
+    setNavToast(true)
+    setTimeout(() => setNavToast(false), 3000)
+  }
 
   const API_BASE = 'http://localhost:5001/agent'
 
@@ -157,7 +165,9 @@ function App() {
 
   const detected = analysis?.detectedSteps || []
   const variables = analysis?.dynamicVariables || []
-  const productivityMsg = generatedOutput?.productivityMessage
+  const productivityMsg = generatedOutput?.type === 'postman' ? 'Generated reusable Postman collection + environment in under 1 minute. Manual setup usually takes 45–60 minutes.' : generatedOutput?.type === 'playwright' ? 'Generated Playwright API test in under 1 minute. Manual coding and debugging usually takes 60–90 minutes.' : generatedOutput?.type === 'jmeter' ? 'Generated JMeter JMX test plan in under 1 minute. Manual setup with samplers, extractors, headers, and assertions usually takes 2–3 hours.' : generatedOutput?.productivityMessage || 'Generated reusable Postman collection + environment in under 1 minute. Manually creating this 5-step API collection usually takes 45–60 minutes.'
+
+  const displayFileName = generatedOutput?.fileName || (generatedOutput?.type === 'playwright' ? 'enrollment-flow.spec.ts' : (generatedOutput?.type === 'jmeter' ? 'enrollment-flow.jmx' : 'postman_collection.json'))
 
   return (
     <div className="flex h-screen overflow-hidden text-on-surface">
@@ -171,11 +181,11 @@ function App() {
           </div>
         </div>
         <nav className="flex-grow flex flex-col gap-2 px-2">
-          <a className="px-3 py-2 rounded-lg hover:bg-gray-50">Home</a>
-          <a className="px-3 py-2 rounded-lg hover:bg-gray-50">Automation Flows</a>
-          <a className="px-3 py-2 rounded-lg bg-purple-100 text-purple-700 font-bold">API Discovery</a>
-          <a className="px-3 py-2 rounded-lg hover:bg-gray-50">Environment</a>
-          <a className="px-3 py-2 rounded-lg hover:bg-gray-50">Settings</a>
+          <a onClick={(e)=>{e.preventDefault(); showNavDemoToast()}} className="px-3 py-2 rounded-lg hover:bg-gray-50">Home</a>
+          <a onClick={(e)=>{e.preventDefault(); showNavDemoToast()}} className="px-3 py-2 rounded-lg hover:bg-gray-50">Automation Flows</a>
+          <a onClick={(e)=>{e.preventDefault(); showNavDemoToast()}} className="px-3 py-2 rounded-lg bg-purple-100 text-purple-700 font-bold">API Discovery</a>
+          <a onClick={(e)=>{e.preventDefault(); showNavDemoToast()}} className="px-3 py-2 rounded-lg hover:bg-gray-50">Environment</a>
+          <a onClick={(e)=>{e.preventDefault(); showNavDemoToast()}} className="px-3 py-2 rounded-lg hover:bg-gray-50">Settings</a>
         </nav>
         <div className="mt-auto px-2">
           <div className="border-t pt-2">
@@ -199,7 +209,7 @@ function App() {
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden lg:block relative">
-              <input className="bg-gray-50 border rounded-full py-2 pl-10 pr-4 w-64" placeholder="Search resources..." />
+            <input onFocus={()=>showNavDemoToast()} className="bg-gray-50 border rounded-full py-2 pl-10 pr-4 w-64" placeholder="Search resources..." />
               <span className="absolute left-3 top-2 text-gray-400">🔍</span>
             </div>
             <button className="p-2">🔔</button>
@@ -218,8 +228,8 @@ function App() {
                 <p className="text-gray-600">Translate manual test cases into automated API orchestration flows.</p>
               </div>
               <div className="flex gap-3">
-                <button className="px-4 py-2 bg-white border rounded">History</button>
-                <button className="px-4 py-2 bg-[#003d9b] text-white rounded">+ New Discovery</button>
+                <button onClick={()=>showNavDemoToast()} className="px-4 py-2 bg-white border rounded">History</button>
+                <button onClick={()=>showNavDemoToast()} className="px-4 py-2 bg-[#003d9b] text-white rounded">+ New Discovery</button>
               </div>
             </div>
 
@@ -237,11 +247,11 @@ function App() {
                     <textarea className="w-full h-40 bg-transparent border-none focus:ring-0 text-sm" value={input} onChange={(e)=>setInput(e.target.value)} />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <button onClick={analyzeFlow} className="w-full py-3 bg-[#003d9b] text-white rounded">Analyze Flow</button>
-                    <button onClick={()=>generate('postman')} className="w-full py-3 bg-gray-100 rounded">Generate Postman</button>
+                    <button onClick={analyzeFlow} disabled={!input.trim()} className={`w-full py-3 rounded ${input.trim() ? 'bg-[#003d9b] text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>Analyze Flow</button>
+                    <button onClick={()=>generate('postman')} disabled={!analysis} className={`w-full py-3 rounded ${analysis ? 'bg-gray-100' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}>Generate Postman</button>
                     <div className="mt-3 pt-3 border-t flex gap-2">
-                      <button onClick={()=>generate('playwright')} className="flex-1 py-2 bg-white border rounded">Playwright</button>
-                      <button onClick={()=>generate('jmeter')} className="flex-1 py-2 bg-white border rounded">JMeter</button>
+                      <button onClick={()=>generate('playwright')} disabled={!analysis} className={`flex-1 py-2 rounded ${analysis ? 'bg-white border' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}>Playwright</button>
+                      <button onClick={()=>generate('jmeter')} disabled={!analysis} className={`flex-1 py-2 rounded ${analysis ? 'bg-white border' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}>JMeter</button>
                     </div>
                   </div>
                 </div>
@@ -252,36 +262,34 @@ function App() {
                 <div className="bg-white border rounded-xl p-6 shadow-sm h-full flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3"><span>🔗</span><h3 className="text-lg font-bold">Detected API Flow</h3></div>
-                    <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full">{detected.length || 5} Steps</span>
+                    <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full">{detected.length} Steps</span>
                   </div>
 
                   <div className="space-y-3">
-                    {(detected.length ? detected : [
-                      { step:1, method:'POST', endpoint:'{{baseUri}}/auth/token', action:'Authenticate user', purpose:'Generate access token for secured enrollment APIs' },
-                      { step:2, method:'POST', endpoint:'{{baseUri}}/members', action:'Create member', purpose:'Create test member with generated demographic data' },
-                      { step:3, method:'GET', endpoint:'{{baseUri}}/plans?state=TX', action:'Get available plans', purpose:'Retrieve eligible plans for Texas' },
-                      { step:4, method:'POST', endpoint:'{{baseUri}}/enrollments', action:'Submit enrollment', purpose:'Submit enrollment using memberId and planId' },
-                      { step:5, method:'GET', endpoint:'{{baseUri}}/enrollments/{{enrollmentId}}', action:'Validate enrollment', purpose:'Validate enrollment status is ACTIVE' }
-                    ]).map(s => (
-                      <div key={s.step} className="p-4 bg-gray-50 border rounded-lg hover:shadow">
-                        <div className="flex items-start gap-4">
-                          <div className="text-xl font-bold text-gray-400">{s.step}.</div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className={`px-2 py-1 rounded text-white font-bold text-xs`} style={{background: s.method === 'GET' ? '#36B37E' : '#0052cc'}}>{s.method}</div>
-                              <code className="text-blue-800 font-mono font-bold">{s.endpoint}</code>
+                    {detected.length > 0 ? (
+                      detected.map(s => (
+                        <div key={s.step} className="p-4 bg-gray-50 border rounded-lg hover:shadow">
+                          <div className="flex items-start gap-4">
+                            <div className="text-xl font-bold text-gray-400">{s.step}.</div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className={`px-2 py-1 rounded text-white font-bold text-xs`} style={{background: s.method === 'GET' ? '#36B37E' : '#0052cc'}}>{s.method}</div>
+                                <code className="text-blue-800 font-mono font-bold">{s.endpoint}</code>
+                              </div>
+                              <p className="text-sm"><strong>Action:</strong> {s.action}</p>
+                              <p className="text-sm text-gray-500"><strong>Purpose:</strong> {s.purpose}</p>
                             </div>
-                            <p className="text-sm"><strong>Action:</strong> {s.action}</p>
-                            <p className="text-sm text-gray-500"><strong>Purpose:</strong> {s.purpose}</p>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      <div className="p-4 text-sm text-gray-500">No detected APIs yet. Enter a manual test case and click Analyze Flow.</div>
+                    )}
 
                     <div className="pt-4 border-t">
                       <h4 className="font-bold mb-2">Dynamic Variables</h4>
                       <div className="flex flex-wrap gap-2">
-                        {(variables.length ? variables : ['baseUrl','accessToken','memberId','planId','enrollmentId']).map(v => (
+                        {(variables.length ? variables : []).map(v => (
                           <span key={v} className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">{v}</span>
                         ))}
                       </div>
@@ -295,7 +303,7 @@ function App() {
                 <div className="bg-white border rounded-xl p-6 shadow-sm h-full flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3"><span>💻</span><h3 className="text-lg font-bold">Generated Workspace</h3></div>
-                    <div className="flex gap-2"><button className="p-2">⟳</button><button className="p-2">⤢</button></div>
+                    <div className="flex gap-2"><button onClick={()=>showNavDemoToast()} className="p-2">⟳</button><button onClick={()=>showNavDemoToast()} className="p-2">⤢</button></div>
                   </div>
 
                   <div className="bg-[#E9EDFF] text-[#0B1666] p-4 rounded mb-4 flex items-start gap-3">
@@ -304,18 +312,41 @@ function App() {
                   </div>
 
                   <div className="flex gap-3 mb-4">
-                    <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2">📋 Copy to clipboard</button>
-                    <button onClick={()=>{
-                      if (generatedOutput?.collection) downloadTextFile(generatedOutput.fileName || 'testflow-enrollment-collection.json', JSON.stringify(generatedOutput.collection, null, 2), 'application/json')
-                    }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⬇️ Postman Collection</button>
-                    <button onClick={()=>{
-                      if (generatedOutput?.environment) downloadTextFile(generatedOutput.environmentFileName || 'testflow-enrollment-environment.json', JSON.stringify(generatedOutput.environment, null, 2), 'application/json')
-                    }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⚙️ Environment</button>
+                    {generatedOutput?.type === 'postman' && (
+                      <>
+                        <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2">📋 Copy to clipboard</button>
+                        <button onClick={()=>{ if (generatedOutput?.collection) downloadTextFile(generatedOutput.fileName || 'testflow-enrollment-collection.json', JSON.stringify(generatedOutput.collection, null, 2), 'application/json') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⬇️ Postman Collection</button>
+                        <button onClick={()=>{ if (generatedOutput?.environment) downloadTextFile(generatedOutput.environmentFileName || 'testflow-enrollment-environment.json', JSON.stringify(generatedOutput.environment, null, 2), 'application/json') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⚙️ Environment</button>
+                      </>
+                    )}
+
+                    {generatedOutput?.type === 'playwright' && (
+                      <>
+                        <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2">📋 Copy to clipboard</button>
+                        <button onClick={()=>{ downloadTextFile('enrollment-flow.spec.ts', generatedOutput.script || '', 'application/typescript') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⬇️ Download Playwright .ts</button>
+                      </>
+                    )}
+
+                    {generatedOutput?.type === 'jmeter' && (
+                      <>
+                        <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2">📋 Copy to clipboard</button>
+                        <button onClick={()=>{ downloadTextFile('enrollment-flow.jmx', generatedOutput.jmx || '', 'application/xml') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⬇️ Download JMeter .jmx</button>
+                      </>
+                    )}
+
+                    {generatedOutput?.type === 'run' && (
+                      <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2">📋 Copy Result</button>
+                    )}
+
+                    {!generatedOutput && (
+                      <div className="text-sm text-gray-500">No generated output yet</div>
+                    )}
+
                   </div>
 
                   <div className="flex-grow bg-[#091E42] rounded overflow-hidden flex flex-col">
                     <div className="bg-[#172B4D] px-4 py-2 flex items-center justify-between border-b border-[#253858]">
-                      <span className="text-white opacity-70 font-mono">{generatedOutput?.fileName || 'postman_collection.json'}</span>
+                      <span className="text-white opacity-70 font-mono">{displayFileName}</span>
                       <div className="flex gap-2">
                         <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
                         <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
@@ -335,6 +366,12 @@ function App() {
               <div className="fixed bottom-6 right-6 bg-white border p-4 rounded shadow flex items-center gap-3">
                 <div className="text-green-500">✅</div>
                 <div>Flow analyzed successfully. { (analysis?.detectedSteps || []).length || 5 } API endpoints detected.</div>
+              </div>
+            )}
+
+            {navToast && (
+              <div className="fixed bottom-6 left-6 bg-white border p-3 rounded shadow text-sm">
+                {navToastMessage}
               </div>
             )}
 
