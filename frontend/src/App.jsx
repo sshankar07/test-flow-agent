@@ -1,5 +1,28 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
+import jmeterLogo from './assets/jmeter.png'
+import postmanLogo from './assets/Postman.svg'
+import playwrightLogo from './assets/Playwright.svg'
+
+const IconPostman = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="inline-block">
+    <rect x="2" y="2" width="20" height="20" rx="4" fill="#FF6C37" />
+    <path d="M9 8h3a2 2 0 0 1 0 4H9v4" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+const IconPlaywright = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="inline-block">
+    <path d="M3 12L12 3L21 12L12 21L3 12Z" fill="#6F42C1" />
+  </svg>
+)
+
+const IconJMeter = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="inline-block">
+    <circle cx="12" cy="12" r="9" fill="#23A455" />
+    <path d="M9 8v8a3 3 0 0 0 6 0v-2" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
 
 function App() {
   const [input, setInput] = useState('')
@@ -354,23 +377,23 @@ function App() {
                   <div className="flex gap-3 mb-4">
                     {generatedOutput?.type === 'postman' && (
                       <>
-                        <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2">📋 Copy to clipboard</button>
-                        <button onClick={()=>{ if (generatedOutput?.collection) downloadTextFile(generatedOutput.fileName || 'testflow-enrollment-collection.json', JSON.stringify(generatedOutput.collection, null, 2), 'application/json') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⬇️ Postman Collection</button>
-                        <button onClick={()=>{ if (generatedOutput?.environment) downloadTextFile(generatedOutput.environmentFileName || 'testflow-enrollment-environment.json', JSON.stringify(generatedOutput.environment, null, 2), 'application/json') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⚙️ Environment</button>
+                        <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2"><IconPostman /><span className="ml-2">Copy</span></button>
+                        <button onClick={()=>{ if (generatedOutput?.collection) downloadTextFile(generatedOutput.fileName || 'testflow-enrollment-collection.json', JSON.stringify(generatedOutput.collection, null, 2), 'application/json') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2"><img src={postmanLogo} alt="Postman" className="w-5 h-5" /><span className="ml-2">Download Postman Collection</span></button>
+                        <button onClick={()=>{ if (generatedOutput?.environment) downloadTextFile(generatedOutput.environmentFileName || 'testflow-enrollment-environment.json', JSON.stringify(generatedOutput.environment, null, 2), 'application/json') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2"><img src={postmanLogo} alt="Postman" className="w-5 h-5" /><span className="ml-2">Download Environment</span></button>
                       </>
                     )}
 
                     {generatedOutput?.type === 'playwright' && (
                       <>
-                        <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2">📋 Copy to clipboard</button>
-                        <button onClick={()=>{ downloadTextFile('enrollment-flow.spec.ts', generatedOutput.script || '', 'application/typescript') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⬇️ Download Playwright .ts</button>
+                        <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2"><IconPlaywright /><span className="ml-2">Copy</span></button>
+                        <button onClick={()=>{ downloadTextFile('enrollment-flow.spec.ts', generatedOutput.script || '', 'application/typescript') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2"><img src={playwrightLogo} alt="Playwright" className="w-5 h-5" /><span className="ml-2">Download Playwright .ts</span></button>
                       </>
                     )}
 
                     {generatedOutput?.type === 'jmeter' && (
                       <>
-                        <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2">📋 Copy to clipboard</button>
-                        <button onClick={()=>{ downloadTextFile('enrollment-flow.jmx', generatedOutput.jmx || '', 'application/xml') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2">⬇️ Download JMeter .jmx</button>
+                        <button onClick={copyGeneratedOutput} className="px-4 py-2 bg-white border rounded flex items-center gap-2"><IconJMeter /><span className="ml-2">Copy</span></button>
+                        <button onClick={()=>{ downloadTextFile('enrollment-flow.jmx', generatedOutput.jmx || '', 'application/xml') }} className="px-4 py-2 bg-white border rounded flex items-center gap-2"><img src={jmeterLogo} alt="JMeter" className="w-5 h-5" /><span className="ml-2">Download JMeter .jmx</span></button>
                       </>
                     )}
 
