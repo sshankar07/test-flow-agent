@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
 function App() {
@@ -11,6 +11,8 @@ function App() {
   const [showToast, setShowToast] = useState(false)
   const [navToast, setNavToast] = useState(false)
   const [navToastMessage, setNavToastMessage] = useState('')
+  const detectedRef = useRef(null)
+  const generatedRef = useRef(null)
 
   function showNavDemoToast(msg = 'Demo navigation only') {
     setNavToastMessage(msg)
@@ -41,6 +43,14 @@ function App() {
       setAnalysis(data || null)
       setOutput('')
       setStatus('Analysis complete')
+
+      // Scroll to Detected API Flow section after analysis
+      try {
+        if (detectedRef?.current) {
+          requestAnimationFrame(() => detectedRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+        }
+      } catch (e) { console.warn('scroll failed', e) }
+
     } catch (err) {
       console.error(err)
       setStatus('Analysis failed: ' + err.message)
@@ -75,10 +85,37 @@ function App() {
         else if (data.script) setOutput(data.script)
         else if (data.jmx) setOutput(data.jmx)
         else setOutput(JSON.stringify(data, null, 2))
+
+        // After successful generation scroll to Generated Workspace for specific kinds
+        if (['postman','playwright','jmeter'].includes(kind) && generatedRef?.current) {
+          try {
+            if (kind === 'jmeter') {
+              // jmeter may produce larger payload; delay a bit to ensure layout settled
+              setTimeout(() => { try { generatedRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch(e) {} }, 160)
+            } else {
+              requestAnimationFrame(() => { try { generatedRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch(e) {} })
+            }
+          } catch(e) { console.warn('scroll failed', e) }
+        }
+
       } else {
         const text = await res.text()
-        try { const parsed = JSON.parse(text); setOutput(JSON.stringify(parsed, null, 2)); setGeneratedOutput(parsed) }
-        catch (_) { setOutput(text); setGeneratedOutput({ type: 'text', content: text }) }
+        try { const parsed = JSON.parse(text); setOutput(JSON.stringify(parsed, null, 2)); setGeneratedOutput(parsed)
+          try { 
+            if (['postman','playwright','jmeter'].includes(kind) && generatedRef?.current) {
+              if (kind === 'jmeter') setTimeout(() => { try { generatedRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch(e) {} }, 160)
+              else requestAnimationFrame(() => { try { generatedRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch(e) {} })
+            }
+          } catch(e) { }
+        }
+        catch (_) { setOutput(text); setGeneratedOutput({ type: 'text', content: text })
+          try { 
+            if (['postman','playwright','jmeter'].includes(kind) && generatedRef?.current) {
+              if (kind === 'jmeter') setTimeout(() => { try { generatedRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch(e) {} }, 160)
+              else requestAnimationFrame(() => { try { generatedRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch(e) {} })
+            }
+          } catch(e) { }
+        }
       }
 
       setStatus(`${kind} generation complete`)
@@ -233,10 +270,10 @@ function App() {
               </div>
             </div>
 
-            <div className="grid lg:grid-cols-12 gap-6">
-              {/* Column 1 */}
-              <section className="lg:col-span-3 flex flex-col gap-6">
-                <div className="bg-white border rounded-xl p-6 shadow-sm flex flex-col">
+            <div className="top-row">
+              {/* Automation Discovery (left) */}
+              <section className="left lg:col-span-3 flex flex-col gap-6">
+                <div className="bg-white border rounded-xl p-6 shadow-sm flex flex-col panel">
                   <div className="flex items-center gap-3 mb-4">
                     <span className="text-[#003d9b]">📄</span>
                     <h3 className="text-lg font-bold">Automation Discovery</h3>
@@ -244,7 +281,7 @@ function App() {
                   <p className="text-sm text-gray-500 mb-4">Enter your manual steps in plain English. The agent will parse API endpoints.</p>
                   <div className="bg-gray-50 border rounded-lg p-4 mb-4">
                     <label className="block text-sm text-gray-500 mb-2">Manual enrollment test case</label>
-                    <textarea className="w-full h-40 bg-transparent border-none focus:ring-0 text-sm" value={input} onChange={(e)=>setInput(e.target.value)} />
+                    <textarea className="w-full bg-transparent border-none focus:ring-0 text-sm input-area" value={input} onChange={(e)=>setInput(e.target.value)} />
                   </div>
                   <div className="flex flex-col gap-2">
                     <button onClick={analyzeFlow} disabled={!input.trim()} className={`w-full py-3 rounded ${input.trim() ? 'bg-[#003d9b] text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>Analyze Flow</button>
@@ -257,24 +294,24 @@ function App() {
                 </div>
               </section>
 
-              {/* Column 2 */}
-              <section className="lg:col-span-4 flex flex-col gap-6">
-                <div className="bg-white border rounded-xl p-6 shadow-sm h-full flex flex-col">
+              {/* Detected API Flow (right) */}
+              <section ref={detectedRef} className="right lg:col-span-4 flex flex-col gap-6">
+                <div className="bg-white border rounded-xl p-6 shadow-sm h-full flex flex-col panel">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3"><span>🔗</span><h3 className="text-lg font-bold">Detected API Flow</h3></div>
                     <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full">{detected.length} Steps</span>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-3 steps-list">
                     {detected.length > 0 ? (
                       detected.map(s => (
-                        <div key={s.step} className="p-4 bg-gray-50 border rounded-lg hover:shadow">
+                        <div key={s.step} className="p-4 bg-gray-50 border rounded-lg hover:shadow step-card">
                           <div className="flex items-start gap-4">
                             <div className="text-xl font-bold text-gray-400">{s.step}.</div>
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
-                                <div className={`px-2 py-1 rounded text-white font-bold text-xs`} style={{background: s.method === 'GET' ? '#36B37E' : '#0052cc'}}>{s.method}</div>
-                                <code className="text-blue-800 font-mono font-bold">{s.endpoint}</code>
+                                <div className={`px-2 py-1 rounded text-white font-bold text-xs ${s.method === 'GET' ? 'method-get' : 'method'}`} style={{background: s.method === 'GET' ? undefined : undefined}}>{s.method}</div>
+                                <code className="text-blue-800 font-mono font-bold endpoint">{s.endpoint}</code>
                               </div>
                               <p className="text-sm"><strong>Action:</strong> {s.action}</p>
                               <p className="text-sm text-gray-500"><strong>Purpose:</strong> {s.purpose}</p>
@@ -298,9 +335,12 @@ function App() {
                 </div>
               </section>
 
-              {/* Column 3 */}
+              {/* Generated Workspace - bottom row full width */}
+            </div>
+
+            <div className="bottom-row">
               <section className="lg:col-span-5 flex flex-col gap-6">
-                <div className="bg-white border rounded-xl p-6 shadow-sm h-full flex flex-col">
+                <div ref={generatedRef} className="bg-white border rounded-xl p-6 shadow-sm h-full flex flex-col panel">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3"><span>💻</span><h3 className="text-lg font-bold">Generated Workspace</h3></div>
                     <div className="flex gap-2"><button onClick={()=>showNavDemoToast()} className="p-2">⟳</button><button onClick={()=>showNavDemoToast()} className="p-2">⤢</button></div>
@@ -345,7 +385,7 @@ function App() {
                   </div>
 
                   <div className="flex-grow bg-[#091E42] rounded overflow-hidden flex flex-col">
-                    <div className="bg-[#172B4D] px-4 py-2 flex items-center justify-between border-b border-[#253858]">
+                    <div className="code-header">
                       <span className="text-white opacity-70 font-mono">{displayFileName}</span>
                       <div className="flex gap-2">
                         <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
@@ -353,7 +393,7 @@ function App() {
                         <div className="w-3 h-3 rounded-full bg-[#27C93F]" />
                       </div>
                     </div>
-                    <div className="p-4 overflow-auto text-sm font-mono text-[#E6E6E6]">
+                    <div className="p-4 overflow-auto text-sm font-mono text-[#E6E6E6] output-block">
                       <pre>{output || JSON.stringify(generatedOutput?.collection || {}, null, 2) || 'Generated output will appear here'}</pre>
                     </div>
                   </div>
