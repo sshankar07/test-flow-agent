@@ -1,5 +1,14 @@
 node_modules
 .env
 dist
-generated/*.zip
 .DS_Store
+
+# Discovery capture + generated sample artifacts (regenerated at runtime, not source)
+generated/
+output/
+
+# Local AI-assistant dev tooling (kept locally, not published)
+CLAUDE.md
+.mcp.json
+.claude/
+.github/copilot-instructions.md

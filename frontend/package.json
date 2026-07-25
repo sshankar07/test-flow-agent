@@ -1,8 +1,11 @@
 {
-  "name": "frontend",
+  "name": "testflow-agent-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "TestFlow Agent — React (Vite) dashboard for scenario input, live API discovery, and generated automation assets",
+  "author": "Shankar Subramanian",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
