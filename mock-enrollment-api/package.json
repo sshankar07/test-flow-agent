@@ -1,14 +1,14 @@
 {
   "name": "mock-enrollment-api",
   "version": "1.0.0",
-  "description": "",
+  "description": "In-memory mock enrollment API used as a runnable demo target for TestFlow Agent",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Shankar Subramanian",
+  "license": "MIT",
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",

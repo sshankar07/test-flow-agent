@@ -237,4 +237,19 @@ Beyond raw speed, the real gain is **consistency**: one described-or-recorded fl
 
 ---
 
+## Author
+
+**Shankar Subramanian** — QA & Test Automation Engineer
+
+- GitHub: [@sshankar07](https://github.com/sshankar07)
+- Email: [shankar.qa14@gmail.com](mailto:shankar.qa14@gmail.com)
+
+Designed and built end to end: the scenario-parsing and generation engine, the live browser-capture discovery pipeline (dynamic-variable correlation, CSRF refresh, toolchain-correct session handling), and the React dashboard.
+
+## License
+
+Released under the [MIT License](LICENSE) — © 2026 Shankar Subramanian.
+
+---
+
 <sub>TestFlow Agent began as a reasoning-agent concept — understand business intent, map it to API orchestration, correlate dynamic state, and emit executable assets — and grew into a working discovery-and-automation tool validated against a live production-style application.</sub>
