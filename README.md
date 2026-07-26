@@ -12,9 +12,11 @@ TestFlow Agent is an automation-discovery assistant for QA engineers. It reads a
   <img alt="JMeter" src="https://img.shields.io/badge/Apache_JMeter-.jmx-D22128?logo=apachejmeter&logoColor=white">
 </p>
 
+![TestFlow Agent — generate Postman, Playwright & JMeter tests from one flow](frontend/src/assets/cover.png)
+
 ![TestFlow Agent — end-to-end demo](demo.gif)
 
-<sub><i>End to end: describe a flow (or record a real app), then generate a correlated Postman collection, Playwright spec, and JMeter plan — and run it.</i></sub>
+<sub><i>Describe a flow (or record a real app), then generate a correlated Postman collection, Playwright spec, and JMeter plan — and run it. The GIF above is the full end-to-end run.</i></sub>
 
 ---
 
