@@ -13,9 +13,9 @@ CLAUDE.md
 .claude/
 .github/copilot-instructions.md
 
-# Local-only launch/marketing notes (private reference)
-LAUNCH-PLAN.md
-PUBLISHING-STEPS.md
+# Local-only working files (drafts, marketing assets, guides) — kept out of the repo.
+# The committed README banner is frontend/src/assets/cover.png (not in docs/).
+docs/*
 
 # Raw demo recording source (large; only the optimized demo.gif is committed)
 *.mov
