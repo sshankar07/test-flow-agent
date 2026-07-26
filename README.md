@@ -46,25 +46,9 @@ Building API automation by hand is slow and repetitive. For a single business fl
 7. Rebuild all of the above three times — once each for Postman, Playwright, and JMeter
 
 The correlation and rebuild work is where hours disappear, and it has to be redone for every new flow and every tool. TestFlow Agent collapses that into a single describe-or-record step and emits all three toolchains at once, kept in lockstep.
-1. Log in and mint an access token
-2. Create prerequisite data (a member)
-3. Fetch and select dependent resources (eligible plans)
-4. Submit the transaction with the right payload
-5. Validate the result
-6. **Correlate dynamic values** (tokens, IDs) across every step
-7. Rebuild all of the above three times — once each for Postman, Playwright, and JMeter
-
-The correlation and rebuild work is where hours disappear, and it has to be redone for every new flow and every tool. TestFlow Agent collapses that into a single describe-or-record step and emits all three toolchains at once, kept in lockstep.
 
 ---
 
-## Two ways to generate a flow
-
-TestFlow Agent supports two input modes that feed the **same** generation engine, so the four output formats always represent one coherent business flow.
-
-### 1. Manual scenario — describe it in English
-
-Type the scenario in plain language:
 ## Two ways to generate a flow
 
 TestFlow Agent supports two input modes that feed the **same** generation engine, so the four output formats always represent one coherent business flow.
@@ -76,15 +60,12 @@ Type the scenario in plain language:
 ```text
 Create an enrollment for a Texas member.
 Get available plans for Texas. Select a Silver plan.
-Get available plans for Texas. Select a Silver plan.
 Submit enrollment with effective date 01/01/2026.
 Validate enrollment status is ACTIVE and enrollment ID is generated.
 ```
 
 The agent parses intent — **state, plan tier, effective date, and positive-vs-negative validation** — and derives the API orchestration:
-The agent parses intent — **state, plan tier, effective date, and positive-vs-negative validation** — and derives the API orchestration:
 
-```http
 ```http
 POST {{baseUrl}}/auth/token
 POST {{baseUrl}}/members
@@ -93,7 +74,6 @@ POST {{baseUrl}}/enrollments
 GET  {{baseUrl}}/enrollments/{{enrollmentId}}
 ```
 
-Positive and negative paths diverge exactly where they should: the "missing effective date" negative case drops `effectiveDate`, asserts **HTTP 400**, and skips the validation call — instead of pretending a broken request succeeded.
 Positive and negative paths diverge exactly where they should: the "missing effective date" negative case drops `effectiveDate`, asserts **HTTP 400**, and skips the validation call — instead of pretending a broken request succeeded.
 
 The generated flow can also be **executed live** against a bundled mock API, so the output is provably runnable, not just static text.
@@ -158,23 +138,8 @@ All formats share one variable vocabulary (`baseUrl`, `accessToken`, `memberId`,
 
 Three independent local services, no shared build — the backend is the core.
 
-Three independent local services, no shared build — the backend is the core.
-
 ```text
 testflow-agent/
-├── frontend/            React 19 + Vite dashboard (scenario input, live discovery
-│                        panel, generated assets, execution results)
-├── backend/             Express API — the generation engine
-│   ├── server.js                    thin: mounts /agent and /discovery
-│   ├── routes/                      analysisRoutes.js · discoveryRoutes.js
-│   ├── lib/
-│   │   ├── analysisHelpers.js       scenario parsing + all four generators
-│   │   └── sanitize.js              shared masking + safe-substitution logic
-│   └── services/
-│       └── discoveryService.js      headed-browser capture → classify → correlate
-└── mock-enrollment-api/ In-memory Express API for a runnable enrollment demo
-                         (/auth/token → /members → /plans → /enrollments)
-```
 ├── frontend/            React 19 + Vite dashboard (scenario input, live discovery
 │                        panel, generated assets, execution results)
 ├── backend/             Express API — the generation engine
@@ -230,18 +195,6 @@ Then open **http://localhost:5173**. This boots all three services and is the fa
 
 ### Option B — Native (needed for live discovery)
 
-### Option A — Docker (one command)
-
-```bash
-docker compose up --build
-```
-
-Then open **http://localhost:5173**. This boots all three services and is the fastest way to try the manual-scenario path (analyze → generate Postman/Playwright/JMeter → run enrollment flow).
-
-> **Live discovery** launches a *headed* browser to record real traffic, so it's best run natively (Option B) rather than in a container.
-
-### Option B — Native (needed for live discovery)
-
 Run the three services, each in its own terminal:
 
 ```bash
@@ -258,7 +211,6 @@ npm --prefix frontend run dev
 Then open **http://localhost:5173**, enter a scenario (or start a live discovery session), and generate.
 
 > Live discovery additionally requires Playwright's Chromium — install once with `npx playwright install chromium`.
-> Live discovery additionally requires Playwright's Chromium — install once with `npx playwright install chromium`.
 
 ---
 
@@ -272,11 +224,6 @@ Enrollment ID · Member ID · Plan ID · Status: ACTIVE · Execution Time
 ```
 
 **Live discovery → OrangeHRM.** Point discovery at `https://opensource-demo.orangehrmlive.com`, log in and browse in the launched browser, then stop. The agent captures the login (with CSRF), classifies the business API calls, correlates identifiers like `empNumber` and `jobTitleId`, and emits a Postman/Playwright/JMeter set that logs in and replays the flow against the live server.
-Enrollment Created and Validated Successfully
-Enrollment ID · Member ID · Plan ID · Status: ACTIVE · Execution Time
-```
-
-**Live discovery → OrangeHRM.** Point discovery at `https://opensource-demo.orangehrmlive.com`, log in and browse in the launched browser, then stop. The agent captures the login (with CSRF), classifies the business API calls, correlates identifiers like `empNumber` and `jobTitleId`, and emits a Postman/Playwright/JMeter set that logs in and replays the flow against the live server.
 
 ---
 
@@ -292,29 +239,9 @@ Hand-building the same coverage, per the tables above:
 | **TestFlow Agent (all three, correlated)** | **< 1 min** |
 
 Beyond raw speed, the real gain is **consistency**: one described-or-recorded flow becomes three toolchains that agree on variables, assertions, and session handling — no per-tool drift, no re-correlation.
-## Productivity impact
-
-Hand-building the same coverage, per the tables above:
-
-| Artifact | Typical manual effort |
-|----------|----------------------|
-| Postman collection with variables + validations | 45–60 min |
-| Playwright chained API test | 60–90 min |
-| JMeter plan with headers, extractors, assertions, correlation | 2–3 hrs |
-| **TestFlow Agent (all three, correlated)** | **< 1 min** |
-
-Beyond raw speed, the real gain is **consistency**: one described-or-recorded flow becomes three toolchains that agree on variables, assertions, and session handling — no per-tool drift, no re-correlation.
 
 ---
 
-## Roadmap
-
-- HAR upload/import (in addition to live capture)
-- Swagger / OpenAPI ingestion
-- Real JMeter execution with report generation
-- Rule- or AI-based test-data generation
-- CI/CD pipeline scaffolding for generated suites
-- Broader domain coverage beyond enrollment
 ## Roadmap
 
 - HAR upload/import (in addition to live capture)
