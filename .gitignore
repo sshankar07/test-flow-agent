@@ -12,3 +12,6 @@ CLAUDE.md
 .mcp.json
 .claude/
 .github/copilot-instructions.md
+
+# Local-only launch/marketing notes (private reference)
+LAUNCH-PLAN.md

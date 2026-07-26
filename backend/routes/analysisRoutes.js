@@ -56,8 +56,8 @@ router.post('/generate/:kind', (req, res) => {
 });
 
 router.post('/run-enrollment-flow', async (req, res) => {
-  console.log('[run-enrollment-flow] Starting execution against mock enrollment API at http://localhost:4000');
-  const baseUrl = 'http://localhost:4000';
+  const baseUrl = process.env.MOCK_API_URL || 'http://localhost:4000';
+  console.log(`[run-enrollment-flow] Starting execution against mock enrollment API at ${baseUrl}`);
   const steps = [];
   let currentStep = 'Unknown';
   const startNs = process.hrtime.bigint();
