@@ -653,7 +653,9 @@ async function startDiscovery({ baseUrl, manualTestCase }) {
     const message = String((launchError && launchError.message) || '');
     // Headed Chromium needs a real display. This fails inside Docker/CI/headless
     // environments (no X server). Live discovery is meant to run natively.
-    if (/XServer|X server|\$DISPLAY|has been closed/i.test(message)) {
+    // Match only display/X-server markers — NOT generic Playwright phrases like
+    // "Target page, context or browser has been closed", which are unrelated failures.
+    if (/XServer|X server|\$DISPLAY/i.test(message)) {
       const error = new Error(
         'Live discovery needs a headed browser and must be run natively (not in Docker/headless). ' +
         'Stop the Docker stack and start the backend directly: `node backend/server.js`. ' +

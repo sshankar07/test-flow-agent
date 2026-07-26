@@ -5,7 +5,7 @@
 FROM node:20-bookworm
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 # Install the Chromium build matching the pinned Playwright version, plus OS deps
 RUN npx playwright install --with-deps chromium
 COPY . .
