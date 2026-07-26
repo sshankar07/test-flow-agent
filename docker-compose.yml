@@ -1,0 +1,31 @@
+# TestFlow Agent — one-command local stack.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:5173
+#
+# The manual-scenario path (Analyze -> Generate Postman/Playwright/JMeter ->
+# Run Enrollment Flow) works fully in containers. The *live discovery* feature
+# opens a headed browser and is best run natively (see README "Quick start").
+services:
+  mock-api:
+    build: ./mock-enrollment-api
+    ports:
+      - "4000:4000"
+
+  backend:
+    build: ./backend
+    ports:
+      - "5001:5001"
+    environment:
+      # Reach the mock API by its compose service name (not localhost) inside the network
+      - MOCK_API_URL=http://mock-api:4000
+    depends_on:
+      - mock-api
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend

@@ -179,6 +179,18 @@ Both input paths normalize into the same internal shape, then fan out through on
 
 ## Quick start
 
+### Option A — Docker (one command)
+
+```bash
+docker compose up --build
+```
+
+Then open **http://localhost:5173**. This boots all three services and is the fastest way to try the manual-scenario path (analyze → generate Postman/Playwright/JMeter → run enrollment flow).
+
+> **Live discovery** launches a *headed* browser to record real traffic, so it's best run natively (Option B) rather than in a container.
+
+### Option B — Native (needed for live discovery)
+
 Run the three services, each in its own terminal:
 
 ```bash
@@ -194,7 +206,7 @@ npm --prefix frontend run dev
 
 Then open **http://localhost:5173**, enter a scenario (or start a live discovery session), and generate.
 
-> **Live discovery** additionally requires Playwright's Chromium — install once with `npx playwright install chromium`.
+> Live discovery additionally requires Playwright's Chromium — install once with `npx playwright install chromium`.
 
 ---
 
