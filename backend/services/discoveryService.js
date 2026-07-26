@@ -646,7 +646,24 @@ async function startDiscovery({ baseUrl, manualTestCase }) {
 
   ensureGeneratedDir();
 
-  const browser = await chromium.launch({ headless: false });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: false });
+  } catch (launchError) {
+    const message = String((launchError && launchError.message) || '');
+    // Headed Chromium needs a real display. This fails inside Docker/CI/headless
+    // environments (no X server). Live discovery is meant to run natively.
+    if (/XServer|X server|\$DISPLAY|has been closed/i.test(message)) {
+      const error = new Error(
+        'Live discovery needs a headed browser and must be run natively (not in Docker/headless). ' +
+        'Stop the Docker stack and start the backend directly: `node backend/server.js`. ' +
+        'The manual-scenario path (Analyze / Generate / Run Enrollment Flow) works in Docker.'
+      );
+      error.statusCode = 503;
+      throw error;
+    }
+    throw launchError;
+  }
   const context = await browser.newContext({
     recordHar: {
       path: HAR_FILE_PATH,

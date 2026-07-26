@@ -12,9 +12,9 @@ TestFlow Agent is an automation-discovery assistant for QA engineers. It reads a
   <img alt="JMeter" src="https://img.shields.io/badge/Apache_JMeter-.jmx-D22128?logo=apachejmeter&logoColor=white">
 </p>
 
-![TestFlow Agent — live API discovery of a real application](frontend/src/assets/Dashboard_new.png)
+![TestFlow Agent — end-to-end demo](demo.gif)
 
-<sub><i>Live discovery of a real OrangeHRM session: 13 business API calls captured, 90 noise requests auto-excluded (static assets, i18n, tracking), and dynamic identifiers (`empNumber`, `reviewId`, `jobTitleId`, `kpiId`…) correlated automatically — ready to generate from.</i></sub>
+<sub><i>End to end: describe a flow (or record a real app), then generate a correlated Postman collection, Playwright spec, and JMeter plan — and run it.</i></sub>
 
 ---
 
@@ -87,6 +87,10 @@ Point the agent at any web app, drive the flow by hand in a launched browser, an
 - **Stop Discovery** classifies, sanitizes, and correlates the captured requests into business-relevant API calls and dynamic variables — then generates all four artifacts from *that*
 
 This path has been verified end-to-end against a live [OrangeHRM](https://opensource-demo.orangehrmlive.com) instance, including a working login-with-CSRF replay.
+
+![TestFlow Agent — live API discovery of a real application](frontend/src/assets/Dashboard_new.png)
+
+<sub><i>Live discovery of a real OrangeHRM session: 13 business API calls captured, 90 noise requests auto-excluded (static assets, i18n, tracking), and dynamic identifiers (`empNumber`, `reviewId`, `jobTitleId`, `kpiId`…) correlated automatically — ready to generate from.</i></sub>
 
 ---
 
