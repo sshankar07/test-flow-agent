@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 const { maskValue, sanitizeHeaders, sanitizeValue, maskFormUrlEncodedString, replaceValueOccurrences, templateUrlPathAndQuery, extractCsrfTokenFromHtml } = require('../lib/sanitize');
+const { isNoDisplayLaunchError } = require('../lib/launchErrors');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const GENERATED_DIR = path.join(PROJECT_ROOT, 'generated');
@@ -650,12 +651,10 @@ async function startDiscovery({ baseUrl, manualTestCase }) {
   try {
     browser = await chromium.launch({ headless: false });
   } catch (launchError) {
-    const message = String((launchError && launchError.message) || '');
-    // Headed Chromium needs a real display. This fails inside Docker/CI/headless
-    // environments (no X server). Live discovery is meant to run natively.
-    // Match only display/X-server markers — NOT generic Playwright phrases like
-    // "Target page, context or browser has been closed", which are unrelated failures.
-    if (/XServer|X server|\$DISPLAY/i.test(message)) {
+    // Headed Chromium needs a real display; this fails inside Docker/CI/headless.
+    // isNoDisplayLaunchError is deliberately narrow (see backend/lib/launchErrors.js
+    // and its regression fixtures) so we don't misdirect unrelated failures here.
+    if (isNoDisplayLaunchError(launchError)) {
       const error = new Error(
         'Live discovery needs a headed browser and must be run natively (not in Docker/headless). ' +
         'Stop the Docker stack and start the backend directly: `node backend/server.js`. ' +
