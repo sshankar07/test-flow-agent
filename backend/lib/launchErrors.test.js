@@ -30,6 +30,11 @@ const MUST_NOT_FLAG = [
   'browserType.launch: Executable not found at /path/to/chrome',
 ];
 
+test('fixture sets are non-empty (a vacuous loop must not pass as green)', () => {
+  assert.ok(MUST_CATCH.length >= 3, 'MUST_CATCH should hold real fixtures');
+  assert.ok(MUST_NOT_FLAG.length >= 3, 'MUST_NOT_FLAG should hold real fixtures');
+});
+
 test('recognizes genuine no-display launch failures', () => {
   for (const msg of MUST_CATCH) {
     assert.ok(isNoDisplayLaunchError(msg), `should CATCH as no-display: ${msg}`);
