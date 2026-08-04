@@ -1,0 +1,62 @@
+name: tests
+
+# PROOF OF LIFE.
+#
+# Before this file existed, backend/*.test.js ran only when someone remembered to
+# type `npm test`. The tests were real and the suite was green, but nothing outside
+# the repo was obligated to notice if that stopped being true — the files existing
+# was doing all the reassuring. A drill nobody schedules isn't a drill.
+#
+# So: run on every push and PR (a break blocks the merge), and on a weekly schedule
+# (Playwright message drift arrives on upgrade, not on commit — the contract job can
+# start failing during a week when nobody touched this repo at all). The schedule is
+# the half that catches drift; the PR trigger is the half that catches regressions.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  schedule:
+    # Mondays 06:00 UTC — catches upstream drift with no commit of ours involved.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: backend unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --prefix backend
+      # The contract test self-skips here (TESTFLOW_CONTRACT_LAUNCH unset), so this
+      # job stays fast and needs no browser binaries.
+      - run: npm --prefix backend test
+
+  launch-contract:
+    name: no-display launch contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --prefix backend
+      - name: Install chromium
+        working-directory: backend
+        run: npx playwright install --with-deps chromium
+      # GitHub's ubuntu runners have no X server, which is precisely the premise
+      # this test needs: it launches headed chromium for real and asserts the
+      # resulting failure still matches the guard. If Playwright rewords that
+      # message, THIS is what goes red — the fixture-based tests can't.
+      - name: Run display-less launch contract
+        working-directory: backend
+        env:
+          TESTFLOW_CONTRACT_LAUNCH: '1'
+        run: node --test lib/launchErrors.contract.test.js

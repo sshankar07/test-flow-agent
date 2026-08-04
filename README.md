@@ -5,6 +5,7 @@
 TestFlow Agent is an automation-discovery assistant for QA engineers. It reads a business flow (either described in natural language or captured live from a real application) and generates a complete, immediately-runnable automation workspace: a **Postman collection + environment**, a **Playwright API test**, and a **JMeter `.jmx` load plan** — all sharing the same correlated variables, assertions, and session handling.
 
 <p align="left">
+  <a href="https://github.com/sshankar07/test-flow-agent/actions/workflows/test.yml"><img alt="tests" src="https://github.com/sshankar07/test-flow-agent/actions/workflows/test.yml/badge.svg"></a>
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-Express-339933?logo=node.js&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React_19-Vite-61DAFB?logo=react&logoColor=black">
   <img alt="Playwright" src="https://img.shields.io/badge/Playwright-Capture_+_Codegen-2EAD33?logo=playwright&logoColor=white">
